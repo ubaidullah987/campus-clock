@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CampusClock Enterprise</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="assets/js/tailwind-config.js"></script>
+    <script src="https://unpkg.com/@vladmandic/face-api/dist/face-api.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body class="h-screen w-full flex flex-col overflow-hidden">
+
+    <div id="toast-container" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+
+    <div id="dynamic-banner" class="fixed top-6 left-1/2 z-[9999] transition-all duration-500 ease-out px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 banner-exit w-[90%] max-w-sm hidden">
+        <div id="banner-icon-container">
+            <i id="banner-icon" class="w-5 h-5"></i>
+        </div>
+        <div class="flex-1">
+            <p id="banner-title" class="text-[10px] font-bold uppercase tracking-widest mb-0.5">Title</p>
+            <h2 id="banner-message" class="text-lg font-semibold tracking-tight text-white">Message</h2>
+        </div>
+    </div>
+
+    <div id="loading-screen" class="fixed inset-0 z-[1000] bg-surface flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="spinner w-8 h-8 mb-4 border-2"></div>
+        <h2 class="text-sm font-semibold tracking-tight text-primary">Initializing Workspace</h2>
+        <p class="text-xs text-muted mt-1">Connecting to Secure Cloud...</p>
+    </div>
+
+    <div id="pin-modal" class="fixed inset-0 z-[500] hidden items-center justify-center bg-black/20 backdrop-blur-sm transition-opacity">
+        <div class="bg-surface p-8 rounded-2xl w-full max-w-sm shadow-floating border border-border fade-in">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="bg-background p-2 rounded-md border border-border"><i data-lucide="lock" class="w-5 h-5 text-primary"></i></div>
+                <div>
+                    <h2 class="text-lg font-semibold tracking-tight">Admin Access</h2>
+                    <p class="text-xs text-muted">Authentication required</p>
+                </div>
+            </div>
+            
+            <input type="password" id="pin-input" maxlength="4" placeholder="••••" inputmode="numeric"
+                   class="saas-input text-center text-2xl tracking-[1em] w-full py-3 mb-2 font-mono focus:ring-2 focus:ring-primary focus:ring-offset-1">
+            
+            <div class="h-5 mb-4"><p id="pin-error" class="text-red-600 text-xs font-medium hidden">Incorrect authentication PIN.</p></div>
+            
+            <div class="flex gap-3 w-full">
+                <button onclick="closePinModal()" class="flex-1 btn-secondary py-2 text-sm">Cancel</button>
+                <button onclick="verifyPin()" class="flex-1 btn-primary py-2 text-sm">Unlock</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="kiosk-mode" class="flex flex-col md:flex-row h-full w-full">
+        <div id="camera-panel" class="w-full md:w-3/5 lg:w-[65%] h-[45vh] md:h-full relative bg-primary flex flex-col justify-end transition-all duration-300">
+            <div id="video-container">
+                <video id="webcam" autoplay playsinline muted></video>
+                <canvas id="overlay" class="overlay"></canvas>
+                <div class="scanner-reticle"><div class="scanner-reticle-v"></div></div>
+            </div>
+
+            <div class="absolute top-4 left-4 right-4 flex justify-between items-start z-10">
+                <div class="bg-black/40 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg">
+                    <h1 class="text-white text-sm font-semibold tracking-tight">CampusClock</h1>
+                </div>
+                <div id="cloud-indicator-kiosk" class="bg-black/40 backdrop-blur-md border border-white/10 px-2.5 py-1.5 rounded-lg flex items-center gap-2">
+                    <div class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" id="cloud-dot"></div>
+                    <span class="text-white/90 text-[10px] font-medium" id="cloud-text">Connecting</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="controls-panel" class="w-full md:w-2/5 lg:w-[35%] h-[55vh] md:h-full bg-surface border-l border-border flex flex-col shadow-[-10px_0_30px_rgba(0,0,0,0.02)] z-10 relative transition-all duration-300">
+            <button onclick="openPinModal()" class="absolute top-4 right-4 text-muted hover:text-primary transition p-2 rounded-md hover:bg-background">
+                <i data-lucide="settings-2" class="w-4 h-4"></i>
+            </button>
+
+            <div class="p-8 lg:p-12 flex flex-col h-full">
+                <div class="mb-10">
+                    <div id="time-display" class="text-5xl font-light tracking-tighter text-primary mb-1">00:00</div>
+                    <div id="date-display" class="text-sm text-muted font-medium">Loading Date...</div>
+                </div>
+
+                <div class="flex-1 flex flex-col justify-center">
+                    <h2 class="text-2xl font-semibold tracking-tight text-primary mb-2">Student Check-In</h2>
+                    <p class="text-sm text-muted mb-6">Position your face within the frame. Verification requires you to be physically present within the campus zone.</p>
+                    
+                    <div class="bg-background rounded-xl p-4 border border-border mb-6">
+                        <div class="flex items-start gap-3">
+                            <i data-lucide="map-pin" class="w-5 h-5 text-primary mt-0.5"></i>
+                            <div>
+                                <p class="text-xs font-semibold text-primary uppercase tracking-wider mb-1">Location Lock</p>
+                                <p id="geo-status" class="text-sm text-muted font-mono">Acquiring satellites...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="pt-6 border-t border-border mt-auto">
+                    <button id="clockInBtn" onclick="performClockIn()" class="btn-primary w-full py-4 text-base shadow-soft border-primary bg-primary text-white hover:bg-[#27272A] hover:text-white">
+                        <i data-lucide="scan-face" class="w-5 h-5 text-white"></i>
+                        Authenticate Identity
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-mode" class="hidden flex-col h-full w-full bg-background fade-in">
+        <header class="bg-surface border-b border-border px-6 h-16 flex items-center justify-between shrink-0 sticky top-0 z-20">
+            <div class="flex items-center gap-6">
+                <div class="flex items-center gap-2 pr-6 border-r border-border">
+                    <div class="bg-primary p-1.5 rounded-md"><i data-lucide="shield-check" class="w-4 h-4 text-white"></i></div>
+                    <span class="font-semibold text-sm tracking-tight">Admin Console</span>
+                </div>
+                <nav class="hidden md:flex gap-1" id="desktop-nav"></nav>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <button onclick="exitAdminMode()" class="btn-secondary px-3 py-1.5 text-xs flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-transparent hover:border-red-200">
+                    <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Exit System
+                </button>
+            </div>
+        </header>
+
+        <div class="md:hidden bg-surface border-b border-border px-4 py-2 overflow-x-auto no-scrollbar flex gap-2 shrink-0" id="mobile-nav"></div>
+
+        <main class="flex-1 overflow-y-auto p-4 md:p-8">
+            <div class="max-w-6xl mx-auto h-full flex flex-col">
+                
+                <section id="sec-register" class="admin-section fade-in">
+                    <div class="mb-6">
+                        <h2 class="text-xl font-semibold tracking-tight">Onboard Student</h2>
+                        <p class="text-sm text-muted mt-1">Capture biometric data and save identity to College database.</p>
+                    </div>
+                    
+                    <div class="bg-surface rounded-xl border border-border shadow-soft overflow-hidden flex flex-col md:flex-row">
+                        <div class="w-full md:w-1/2 h-64 md:h-96 relative bg-black border-b md:border-b-0 md:border-r border-border">
+                            <video id="admin-webcam" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover transform -scale-x-100"></video>
+                            <canvas id="admin-overlay" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100"></canvas>
+                        </div>
+                        <div class="w-full md:w-1/2 p-6 lg:p-10 flex flex-col justify-center gap-4">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-muted uppercase tracking-wider mb-1.5">Full Name</label>
+                                    <input type="text" id="regName" placeholder="e.g. Aubaid Ullah" class="saas-input w-full px-3 py-2.5 text-sm font-medium">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-muted uppercase tracking-wider mb-1.5">Mobile No (with code)</label>
+                                    <input type="tel" id="regMobile" placeholder="e.g. 910000000000" class="saas-input w-full px-3 py-2.5 text-sm font-mono">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-muted uppercase tracking-wider mb-1.5">Reg No</label>
+                                    <input type="text" id="regRoll" placeholder="e.g.11991-ANG-2026" class="saas-input w-full px-1.5 py-1 text-sm font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-muted uppercase tracking-wider mb-1.5">Stream</label>
+                                    <select id="regStream" class="saas-input w-full px-3 py-2.5 text-sm font-medium">
+                                        <option value="" disabled selected>Select</option>
+                                        <option value="Medical">Medical</option>
+                                        <option value="Non Medical">Non Med</option>
+                                        <option value="Arts">Arts</option>
+                                        <option value="BCA">BCA</option>
+                                        <option value="IT">IT</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-muted uppercase tracking-wider mb-1.5">Sem</label>
+                                    <input type="text" id="regSem" placeholder="e.g. 1" class="saas-input w-full px-3 py-2.5 text-sm font-mono">
+                                </div>
+                            </div>
+                            
+                            <button id="registerBtn" onclick="registerFace()" class="btn-primary w-full py-3 mt-4 bg-primary text-white border-primary hover:bg-[#27272A]">
+                                <i data-lucide="focus" class="w-4 h-4 text-white"></i> Scan & Encrypt Identity
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="sec-roster" class="admin-section hidden fade-in">
+                    <div class="flex justify-between items-end mb-6">
+                        <div>
+                            <h2 class="text-xl font-semibold tracking-tight">Active Roster</h2>
+                            <p class="text-sm text-muted mt-1">Manage enrolled student identities.</p>
+                        </div>
+                        <span class="text-xs font-mono bg-surface border border-border px-2 py-1 rounded-md"><span id="student-count">0</span> Total</span>
+                    </div>
+
+                    <div class="bg-surface rounded-xl border border-border shadow-soft overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse min-w-[700px]">
+                                <thead>
+                                    <tr class="bg-background border-b border-border text-xs uppercase text-muted tracking-wider">
+                                        <th class="px-6 py-3 font-medium">Roll No</th>
+                                        <th class="px-6 py-3 font-medium">Name</th>
+                                        <th class="px-6 py-3 font-medium">Mobile</th>
+                                        <th class="px-6 py-3 font-medium">Stream</th>
+                                        <th class="px-6 py-3 font-medium">Sem</th>
+                                        <th class="px-6 py-3 font-medium text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="roster-tbody" class="text-sm divide-y divide-border">
+                                    <tr><td colspan="6" class="px-6 py-8 text-center text-muted italic">Loading records...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="sec-logs" class="admin-section hidden fade-in h-full min-h-[500px]">
+                    <div class="flex flex-col md:flex-row h-full bg-surface rounded-xl border border-border shadow-soft overflow-hidden">
+                        <div class="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-border flex flex-col bg-background">
+                            <div class="p-5 border-b border-border bg-surface">
+                                <h3 class="font-bold text-primary tracking-tight mb-3">Student Directory</h3>
+                                <select id="stream-filter" onchange="renderLogsStudentList()" class="saas-input w-full px-3 py-2 text-sm font-medium">
+                                    <option value="ALL">All Streams</option>
+                                    <option value="Medical">Medical</option>
+                                    <option value="Non Medical">Non Medical</option>
+                                    <option value="Arts">Arts</option>
+                                    <option value="BCA">BCA</option>
+                                    <option value="IT">IT</option>
+                                </select>
+                            </div>
+                            <div class="flex-1 overflow-y-auto p-3" id="logs-student-list"></div>
+                        </div>
+                        
+                        <div class="w-full md:w-2/3 flex flex-col bg-surface h-full relative" id="student-report-panel">
+                            <div id="report-empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-muted z-10 bg-surface">
+                                <i data-lucide="pie-chart" class="w-12 h-12 mb-4 opacity-50 text-border"></i>
+                                <p class="text-sm font-medium text-primary">Analytics Dashboard</p>
+                                <p class="text-xs mt-1">Select a student from the directory to view attendance insights.</p>
+                            </div>
+                            
+                            <div id="report-content" class="hidden flex-col h-full overflow-y-auto w-full absolute inset-0 z-20 bg-surface">
+                                <div class="p-6 md:p-8 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-background">
+                                    <div>
+                                        <h2 id="report-name" class="text-2xl font-bold tracking-tight text-primary">Student Name</h2>
+                                        <div class="flex flex-wrap gap-2 mt-2">
+                                            <span id="report-roll" class="text-[10px] font-mono bg-white border border-border px-2 py-1 rounded text-muted uppercase tracking-wider">Roll: ---</span>
+                                            <span id="report-stream" class="text-[10px] font-bold uppercase tracking-wider bg-white border border-border px-2 py-1 rounded text-primary">Stream: ---</span>
+                                            <span id="report-sem" class="text-[10px] font-bold uppercase tracking-wider bg-white border border-border px-2 py-1 rounded text-primary">Sem: ---</span>
+                                            <span id="report-mobile" class="text-[10px] font-bold uppercase tracking-wider bg-white border border-border px-2 py-1 rounded text-primary">Mob: ---</span>
+                                        </div>
+                                    </div>
+                                    <button onclick="markAbsentees()" class="btn-secondary px-4 py-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-border hover:border-red-200 transition font-bold shrink-0">
+                                        <i data-lucide="user-x" class="w-4 h-4"></i> Mark Absentees Today
+                                    </button>
+                                </div>
+                                
+                                <div class="p-6 md:p-8 flex flex-col sm:flex-row items-center gap-6 border-b border-border">
+                                    <div class="flex-1 grid grid-cols-2 gap-4 w-full">
+                                        <div class="bg-emerald-50/50 border border-emerald-100 p-4 rounded-xl flex flex-col">
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-800 mb-1">Present</p>
+                                            <p id="report-present-count" class="text-3xl font-black text-emerald-600 mt-auto">0</p>
+                                        </div>
+                                        <div class="bg-red-50/50 border border-red-100 p-4 rounded-xl flex flex-col">
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-red-800 mb-1">Absent</p>
+                                            <p id="report-absent-count" class="text-3xl font-black text-red-600 mt-auto">0</p>
+                                        </div>
+                                    </div>
+                                    <div class="w-28 h-28 shrink-0 relative">
+                                        <canvas id="attendanceChart"></canvas>
+                                        <div id="attendance-percent-center" class="absolute inset-0 flex items-center justify-center text-sm font-black text-primary">0%</div>
+                                    </div>
+                                </div>
+
+                                <div id="whatsapp-warning-container" class="hidden px-6 md:px-8 py-4 bg-red-50/50 border-b border-red-100 shrink-0">
+                                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                        <div>
+                                            <p class="text-xs font-bold text-red-800 uppercase tracking-wider mb-0.5">Shortage Alert</p>
+                                            <p class="text-[10px] text-red-600 font-medium">Attendance is below the 60% requirement.</p>
+                                        </div>
+                                        <button onclick="sendWhatsAppWarning()" class="btn-primary w-full sm:w-auto bg-[#25D366] border-[#25D366] hover:bg-[#128C7E] text-white text-xs px-4 py-2 shrink-0 shadow-sm">
+                                            <i data-lucide="message-circle" class="w-4 h-4"></i> Send Warning via WhatsApp
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="flex-1 px-6 md:px-8 py-6">
+                                    <h3 class="text-sm font-bold tracking-tight text-primary border-b border-border pb-3 mb-4">Chronological History</h3>
+                                    <ul id="report-logs-list" class="space-y-3"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="sec-campus" class="admin-section hidden fade-in">
+                    <div class="flex justify-between items-end mb-6">
+                        <div>
+                            <h2 class="text-xl font-semibold tracking-tight">Geofence Parameters</h2>
+                            <p class="text-sm text-muted mt-1">Define the physical authentication boundary.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-surface rounded-xl border border-border shadow-soft p-1 flex flex-col lg:flex-row gap-1">
+                        <div id="admin-map" class="w-full lg:w-2/3 h-[400px] rounded-lg bg-background border border-border relative z-10"></div>
+                        
+                        <div class="w-full lg:w-1/3 p-5 flex flex-col gap-5">
+                            <div>
+                                <label class="block text-xs font-semibold text-primary uppercase tracking-wider mb-2">Boundary Radius (Meters)</label>
+                                <input type="number" id="campusRadius" class="saas-input w-full px-3 py-2 text-sm font-mono" value="100" onchange="updateCampusFromRadiusInput()">
+                            </div>
+                            
+                            <div class="bg-background p-3 rounded-lg border border-border">
+                                <p class="text-[10px] text-muted uppercase font-bold tracking-wider mb-1">Preview Coordinates</p>
+                                <p id="map-lat-lon" class="text-xs font-mono text-primary break-all">Lat: --<br>Lon: --</p>
+                            </div>
+                            
+                            <div class="flex flex-col gap-2 mt-auto pt-4 border-t border-border">
+                                <button onclick="centerMapOnCurrentLocation()" class="btn-secondary w-full py-2.5 text-xs">
+                                    <i data-lucide="crosshair" class="w-3.5 h-3.5"></i> Set to My GPS
+                                </button>
+                                <button onclick="saveCampusToCloud()" class="btn-primary w-full py-2.5 text-xs border-primary bg-primary text-white hover:bg-[#27272A]">
+                                    <i data-lucide="cloud-upload" class="w-3.5 h-3.5 text-white"></i> Save Configuration
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/config.js"></script>
+    <script src="assets/js/app.js"></script>
+</body>
+</html>
