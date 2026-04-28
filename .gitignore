@@ -1,0 +1,6 @@
+# Node/OS
+node_modules/
+.DS_Store
+
+# Configuration (DO NOT COMMIT THE REAL CONFIG)
+assets/js/config.js
