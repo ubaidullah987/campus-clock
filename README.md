@@ -10,12 +10,18 @@
 2.  **GPS Check:** The app checks your phone/device location. If you aren't actually on campus, you can't check-in.
 3.  **Face Scan:** You look at the camera. The AI recognizes who you are instantly.
 4.  **Automated Attendance Alert System Providing Real Time Student Threshold Notifications**
+5.  
      **Continuous Monitoring:** Proactively tracks student participation to keep attendance data accurate and current.
+    
      **Threshold Detection:** Automatically identifies when attendance falls below the mandatory 60% threshold.
+    
      **Administrative Alerting**: Immediately flags student profiles in the admin dashboard for review upon triggering the threshold.
+    
      **Automated Student Notification:** Instantly sends a formal notice to students detailing the shortage and necessary next steps.
+    
      **Proactive Academic Support** : Enables early intervention to prevent academic complications by keeping students informed.
-5.  **Done:** The app says "Welcome," logs your attendance in the database, and you're good to go!
+    
+7.  **Done:** The app says "Welcome," logs your attendance in the database, and you're good to go!
  
 ##  Key Features
  **Location Lock (Geofencing)**: You can't "cheat" the system from home. The "Clock-In" button only turns green when you are physically within the campus boundaries.
