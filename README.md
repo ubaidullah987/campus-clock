@@ -11,7 +11,7 @@
 3.  **Face Scan:** You look at the camera. The AI recognizes who you are instantly.
 4.  **Automated Attendance Alert System Providing Real Time Student Threshold Notifications**
         
-         i) **Continuous Monitoring:** Proactively tracks student participation to keep attendance data accurate and current.
+         **Continuous Monitoring:** Proactively tracks student participation to keep attendance data accurate and current.
         
          **Threshold Detection:** Automatically identifies when attendance falls below the mandatory 60% threshold.
         
