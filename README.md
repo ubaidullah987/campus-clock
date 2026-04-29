@@ -1,24 +1,21 @@
 
 
-# 🏗️ CampusClock
+#  CampusClock
 **The smart way to take attendance.** CampusClock is a web app that uses your face and your location to mark you "Present." No more paper sheets or manual roll calls.
 
----
 
-## 🌟 How it Works (The Simple Flow)
+
+##  How it Works (The Simple Flow)
 
 1.  **Walk Up:** The kiosk is set up at the campus entrance.
 2.  **GPS Check:** The app checks your phone/device location. If you aren't actually on campus, you can't check-in.
 3.  **Face Scan:** You look at the camera. The AI recognizes who you are instantly.
 4.  **Done:** The app says "Welcome," logs your attendance in the database, and you're good to go!
-
----
-
-## 🛠️ Key Features
-
-* **📍 Location Lock (Geofencing):** You can't "cheat" the system from home. The "Clock-In" button only turns green when you are physically within the campus boundaries.
-* **🤖 Smart Face Recognition:** Using AI, the app recognizes students in real-time. It doesn't save your photo—it turns your face into a unique "math code" that only the app understands.
-* **📊 Admin Dashboard:** Teachers can see a list of who is present, view attendance charts, and even send a WhatsApp warning to students who are skipping too many classes.
+ 
+##  Key Features
+ ** Location Lock (Geofencing):** You can't "cheat" the system from home. The "Clock-In" button only turns green when you are physically within the campus boundaries.
+ ** Smart Face Recognition:** Using AI, the app recognizes students in real-time. It doesn't save your photo—it turns your face into a unique "math code" that only the app understands.
+* ** Admin Dashboard:** Teachers can see a list of who is present, view attendance charts, and even send a WhatsApp warning to students who are skipping too many classes.
 * **🗣️ Voice Feedback:** The app talks back to you! It greets you by name when you successfully check in.
 
 ---
