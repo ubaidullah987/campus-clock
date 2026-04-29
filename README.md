@@ -1,6 +1,4 @@
-Here is a simple, student-friendly version of the README. It cuts through the technical jargon and explains exactly what the app does and how it works.
 
----
 
 # 🏗️ CampusClock
 **The smart way to take attendance.** CampusClock is a web app that uses your face and your location to mark you "Present." No more paper sheets or manual roll calls.
