@@ -116,7 +116,7 @@ function triggerBanner(title, message, type = 'success') {
 async function loadModels() {
     // 1. Move startCamera up here, OUTSIDE the try-catch block!
     // Now the camera will always turn on, no matter what happens next.
-    //await startCamera(); 
+    await startCamera(); 
 
     // FIX: Use jsdelivr instead of unpkg, it is much less likely to be blocked
     const MODEL_URL = '/model';
