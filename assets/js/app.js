@@ -114,10 +114,17 @@ function triggerBanner(title, message, type = 'success') {
 
 // --- CORE LOAD & CLOUD FETCH ---
 async function loadModels() {
-    const MODEL_URL = 'https://unpkg.com/@vladmandic/face-api/model/';
+    // 1. Move startCamera up here, OUTSIDE the try-catch block!
+    // Now the camera will always turn on, no matter what happens next.
+    await startCamera(); 
+
+    // FIX: Use jsdelivr instead of unpkg, it is much less likely to be blocked
+    const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+    
     try {
         if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 
+        // 2. Now try to load the models
         await Promise.all([
             faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
             faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
@@ -129,8 +136,6 @@ async function loadModels() {
         loader.style.opacity = "0";
         setTimeout(() => loader.classList.add('hidden'), 500);
         
-        await startCamera();
-        
         await fetchCampusData();
         await fetchSupabaseData(); 
         
@@ -138,10 +143,11 @@ async function loadModels() {
 
     } catch (err) {
         document.getElementById('loading-screen').classList.add('hidden');
+        // This will print the EXACT reason it is failing to your console now
+        console.error("AI Loading Error:", err); 
         showToast("Error loading AI. Ensure Adblockers are disabled.", "error");
     }
 }
-
 async function fetchSupabaseData() {
     try {
         const { data: students, error: err1 } = await supabaseClient.from('students').select('*').order('name');
