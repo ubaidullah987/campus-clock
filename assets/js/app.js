@@ -33,13 +33,14 @@ const geoStatusEl = document.getElementById('geo-status');
 // --- Clock Engine ---
 setInterval(() => {
     const now = new Date();
-    document.getElementById('time-display').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    document.getElementById('date-display').innerText = now.toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'});
+    if(document.getElementById('time-display')) document.getElementById('time-display').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    if(document.getElementById('date-display')) document.getElementById('date-display').innerText = now.toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric'});
 }, 1000);
 
 // --- Notifications ---
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
+    if (!container) return;
     const toast = document.createElement('div');
     toast.className = `flex items-center gap-3 px-4 py-3 rounded-lg shadow-floating border text-sm font-medium fade-in pointer-events-auto transition-all duration-300 transform translate-y-0`;
     
@@ -83,6 +84,7 @@ function triggerBanner(title, message, type = 'success') {
     const titleEl = document.getElementById('banner-title');
     const msgEl = document.getElementById('banner-message');
     const iconContainer = document.getElementById('banner-icon-container');
+    if (!banner || !titleEl || !msgEl || !iconContainer) return;
     
     titleEl.innerText = title; msgEl.innerText = message;
     banner.className = `fixed top-6 left-1/2 z-[9999] transition-all duration-500 ease-out text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 banner-exit w-[90%] max-w-sm border`;
@@ -114,17 +116,21 @@ function triggerBanner(title, message, type = 'success') {
 
 // --- CORE LOAD & CLOUD FETCH ---
 async function loadModels() {
-    // 1. Move startCamera up here, OUTSIDE the try-catch block!
-    // Now the camera will always turn on, no matter what happens next.
+    // 1. Turn on camera immediately so the user doesn't face a black layout
     await startCamera(); 
 
-    // FIX: Use jsdelivr instead of unpkg, it is much less likely to be blocked
     const MODEL_URL = '/model';
-    await faceapi.tf.setBackend('webgl');
     try {
         if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+        
+        // Safely set graphics acceleration backend
+        try {
+            await faceapi.tf.setBackend('webgl');
+        } catch(e) {
+            console.warn("WebGL optimization rejected, falling back to CPU layout engine.");
+        }
 
-        // 2. Now try to load the models
+        // 2. Load the system model weights from the local root folder
         await Promise.all([
             faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
             faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
@@ -133,8 +139,10 @@ async function loadModels() {
         
         state.modelsLoaded = true;
         const loader = document.getElementById('loading-screen');
-        loader.style.opacity = "0";
-        setTimeout(() => loader.classList.add('hidden'), 500);
+        if (loader) {
+            loader.style.opacity = "0";
+            setTimeout(() => loader.classList.add('hidden'), 500);
+        }
         
         await fetchCampusData();
         await fetchSupabaseData(); 
@@ -142,12 +150,13 @@ async function loadModels() {
         startLocationTracking();
 
     } catch (err) {
-        document.getElementById('loading-screen').classList.add('hidden');
-        // This will print the EXACT reason it is failing to your console now
-        console.error("AI Loading Error:", err); 
-        showToast("Error loading AI. Ensure Adblockers are disabled.", "error");
+        const loader = document.getElementById('loading-screen');
+        if (loader) loader.classList.add('hidden');
+        console.error("AI Loading Error Details:", err); 
+        showToast("Error loading AI. Ensure local models directory matches repository structure.", "error");
     }
 }
+
 async function fetchSupabaseData() {
     try {
         const { data: students, error: err1 } = await supabaseClient.from('students').select('*').order('name');
@@ -159,9 +168,9 @@ async function fetchSupabaseData() {
             return new faceapi.LabeledFaceDescriptors(record.id.toString(), [descArray]);
         });
 
-        document.getElementById('cloud-indicator-kiosk').classList.replace('border-white/10', 'border-emerald-500/50');
-        document.getElementById('cloud-dot').classList.replace('bg-yellow-400', 'bg-emerald-500');
-        document.getElementById('cloud-text').innerText = "System Online";
+        if(document.getElementById('cloud-indicator-kiosk')) document.getElementById('cloud-indicator-kiosk').classList.replace('border-white/10', 'border-emerald-500/50');
+        if(document.getElementById('cloud-dot')) document.getElementById('cloud-dot').classList.replace('bg-yellow-400', 'bg-emerald-500');
+        if(document.getElementById('cloud-text')) document.getElementById('cloud-text').innerText = "System Online";
         
         updateRosterTable();
         renderLogsStudentList(); 
@@ -169,9 +178,9 @@ async function fetchSupabaseData() {
         await refreshAllLogs();
 
     } catch (error) {
-        document.getElementById('cloud-indicator-kiosk').classList.replace('border-white/10', 'border-red-500/50');
-        document.getElementById('cloud-dot').classList.replace('bg-yellow-400', 'bg-red-500');
-        document.getElementById('cloud-text').innerText = "Sync Failed";
+        if(document.getElementById('cloud-indicator-kiosk')) document.getElementById('cloud-indicator-kiosk').classList.replace('border-white/10', 'border-red-500/50');
+        if(document.getElementById('cloud-dot')) document.getElementById('cloud-dot').classList.replace('bg-yellow-400', 'bg-red-500');
+        if(document.getElementById('cloud-text')) document.getElementById('cloud-text').innerText = "Sync Failed";
         if(error.code === '42P01') showToast("Please run the SQL script to create the new tables including 'mobile_no'.", "error");
     }
 }
@@ -188,7 +197,7 @@ async function fetchCampusData() {
         const { data, error } = await supabaseClient.from('campus_settings').select('*').eq('id', 1).single();
         if (data && !error) {
             state.campus = { lat: data.lat, lon: data.lon, radius: data.radius };
-            document.getElementById('campusRadius').value = data.radius;
+            if(document.getElementById('campusRadius')) document.getElementById('campusRadius').value = data.radius;
         }
     } catch (err) {}
 }
@@ -198,20 +207,20 @@ async function startCamera() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
         state.videoStream = stream;
-        video.srcObject = stream;
-        adminVideo.srcObject = stream;
+        if(video) video.srcObject = stream;
+        if(adminVideo) adminVideo.srcObject = stream;
         
-        video.onloadedmetadata = () => video.play();
-        adminVideo.onloadedmetadata = () => adminVideo.play();
+        if(video) video.onloadedmetadata = () => video.play();
+        if(adminVideo) adminVideo.onloadedmetadata = () => adminVideo.play();
         
     } catch (err) { 
         try {
             const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
             state.videoStream = fallbackStream;
-            video.srcObject = fallbackStream;
-            adminVideo.srcObject = fallbackStream;
-            video.onloadedmetadata = () => video.play();
-            adminVideo.onloadedmetadata = () => adminVideo.play();
+            if(video) video.srcObject = fallbackStream;
+            if(adminVideo) adminVideo.srcObject = fallbackStream;
+            if(video) video.onloadedmetadata = () => video.play();
+            if(adminVideo) adminVideo.onloadedmetadata = () => adminVideo.play();
         } catch (fallbackErr) {
             showToast("Camera access required.", "error"); 
         }
@@ -225,14 +234,16 @@ function startLocationTracking() {
                 state.currentLocation = { lat: position.coords.latitude, lon: position.coords.longitude };
                 checkGeofence();
             },
-            (err) => { geoStatusEl.innerHTML = "<span class='text-red-500 font-semibold'>Location Denied</span>"; },
+            (err) => { 
+                if(geoStatusEl) geoStatusEl.innerHTML = "<span class='text-red-500 font-semibold'>Location Denied</span>"; 
+            },
             { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
         );
     }
 }
 
 function checkGeofence() {
-    if (!state.currentLocation) return;
+    if (!state.currentLocation || !geoStatusEl || !clockInBtn) return;
     const R = 6371e3;
     const lat1 = state.currentLocation.lat * Math.PI/180;
     const lat2 = state.campus.lat * Math.PI/180;
@@ -276,7 +287,9 @@ function initMap() {
 
 function updateCampusState(lat, lon, radius, isFromMap = false) {
     state.campus.lat = parseFloat(lat); state.campus.lon = parseFloat(lon); state.campus.radius = parseFloat(radius);
-    document.getElementById('map-lat-lon').innerHTML = `Lat: ${state.campus.lat.toFixed(5)}<br>Lon: ${state.campus.lon.toFixed(5)}`;
+    if(document.getElementById('map-lat-lon')) {
+        document.getElementById('map-lat-lon').innerHTML = `Lat: ${state.campus.lat.toFixed(5)}<br>Lon: ${state.campus.lon.toFixed(5)}`;
+    }
     if(map && campusMarker && campusCircle) {
         campusMarker.setLatLng([state.campus.lat, state.campus.lon]);
         campusCircle.setLatLng([state.campus.lat, state.campus.lon]);
@@ -304,7 +317,7 @@ function drawFaceBox(detection, label = "", isKiosk = true) {
     const targetVideo = isKiosk ? video : adminVideo;
     const targetOverlay = isKiosk ? overlay : adminOverlay;
     
-    if (!targetVideo.videoWidth || !targetVideo.videoHeight) return;
+    if (!targetVideo || !targetVideo.videoWidth || !targetVideo.videoHeight || !targetOverlay) return;
     
     const displaySize = { width: targetVideo.videoWidth, height: targetVideo.videoHeight };
     faceapi.matchDimensions(targetOverlay, displaySize);
@@ -336,7 +349,6 @@ function toggleFullScreenLayout(isFullScreen) {
     }
 }
 
-
 async function registerFace() {
     const nameEl = document.getElementById('regName') || document.getElementById('studentName');
     const name = nameEl ? nameEl.value.trim() : '';
@@ -351,6 +363,12 @@ async function registerFace() {
 
     if (!name || !rollNo || !stream || !sem || !mobile) { showToast("All fields are required.", "error"); return; }
     
+    // SAFETY CHECK 1: Reject interaction if system models are offline
+    if (!state.modelsLoaded) {
+        triggerBanner("AI Offline", "Face processing model files have not finished loading.", "error");
+        return;
+    }
+
     const rollExists = state.dbStudentsMap.some(s => s.roll_no.toLowerCase() === rollNo.toLowerCase());
     if (rollExists) {
         triggerBanner("Duplicate Entry", `Roll No ${rollNo} already exists.`, "warning");
@@ -371,11 +389,6 @@ async function registerFace() {
         const detection = await faceapi.detectSingleFace(adminVideo).withFaceLandmarks().withFaceDescriptor();
         if (!detection) { 
             showToast("Face not detected. Ensure video feed is active and look at the camera.", "error"); 
-            if(registerBtn) {
-                registerBtn.innerHTML = `<i data-lucide="focus" class="w-4 h-4 text-white"></i> Scan & Encrypt Identity`;
-                registerBtn.disabled = false;
-            }
-            lucide.createIcons();
             return; 
         }
 
@@ -389,11 +402,6 @@ async function registerFace() {
                 triggerBanner("Face Exists", `Face already registered to ${existingName}`, "error");
                 speakMessage(`Registration failed. This face is already registered to ${existingName}.`);
                 drawFaceBox(detection, "Already Registered", false);
-                if(registerBtn) {
-                    registerBtn.innerHTML = `<i data-lucide="focus" class="w-4 h-4 text-white"></i> Scan & Encrypt Identity`;
-                    registerBtn.disabled = false;
-                }
-                lucide.createIcons();
                 return;
             }
         }
@@ -420,13 +428,17 @@ async function registerFace() {
             
             await fetchSupabaseData(); 
         }
-    } catch (err) { showToast("Failed to save to cloud.", "error"); console.error(err); }
-    
-    if(registerBtn) {
-        registerBtn.innerHTML = `<i data-lucide="focus" class="w-4 h-4 text-white"></i> Scan & Encrypt Identity`;
-        registerBtn.disabled = false;
+    } catch (err) { 
+        showToast("System crash or storage error occurred.", "error"); 
+        console.error(err); 
+    } finally {
+        // SAFETY FIX 2: Finally wrapper guarantees execution flow returns button back to functional layout
+        if(registerBtn) {
+            registerBtn.innerHTML = `<i data-lucide="focus" class="w-4 h-4 text-white"></i> Scan & Encrypt Identity`;
+            registerBtn.disabled = false;
+        }
+        lucide.createIcons();
     }
-    lucide.createIcons();
 }
 
 async function deleteStudent(id, name) {
@@ -439,7 +451,8 @@ async function deleteStudent(id, name) {
 
 function updateRosterTable() {
     const tbody = document.getElementById('roster-tbody');
-    document.getElementById('student-count').innerText = state.dbStudentsMap.length;
+    if (!tbody) return;
+    if (document.getElementById('student-count')) document.getElementById('student-count').innerText = state.dbStudentsMap.length;
     
     if(state.dbStudentsMap.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-muted italic">No identities loaded.</td></tr>'; return;
@@ -468,8 +481,10 @@ function updateRosterTable() {
 
 // --- DASHBOARD LOGIC (View 3) ---
 function renderLogsStudentList() {
-    const filter = document.getElementById('stream-filter').value;
+    const filterEl = document.getElementById('stream-filter');
+    const filter = filterEl ? filterEl.value : 'ALL';
     const listEl = document.getElementById('logs-student-list');
+    if (!listEl) return;
     listEl.innerHTML = '';
     
     let filtered = state.dbStudentsMap;
@@ -506,15 +521,17 @@ async function openStudentLog(studentId, btnElement) {
     if(!student) return;
     state.activeStudentId = student.id; 
 
-    document.getElementById('report-empty-state').classList.add('hidden');
-    document.getElementById('report-content').classList.remove('hidden');
-    document.getElementById('report-content').classList.add('flex');
+    if(document.getElementById('report-empty-state')) document.getElementById('report-empty-state').classList.add('hidden');
+    if(document.getElementById('report-content')) {
+        document.getElementById('report-content').classList.remove('hidden');
+        document.getElementById('report-content').classList.add('flex');
+    }
 
-    document.getElementById('report-name').innerText = student.name;
-    document.getElementById('report-roll').innerText = `Roll: ${student.roll_no}`;
-    document.getElementById('report-stream').innerText = `Stream: ${student.stream}`;
-    document.getElementById('report-sem').innerText = `Sem: ${student.sem || '-'}`;
-    document.getElementById('report-mobile').innerText = `Mob: ${student.mobile_no || 'N/A'}`;
+    if(document.getElementById('report-name')) document.getElementById('report-name').innerText = student.name;
+    if(document.getElementById('report-roll')) document.getElementById('report-roll').innerText = `Roll: ${student.roll_no}`;
+    if(document.getElementById('report-stream')) document.getElementById('report-stream').innerText = `Stream: ${student.stream}`;
+    if(document.getElementById('report-sem')) document.getElementById('report-sem').innerText = `Sem: ${student.sem || '-'}`;
+    if(document.getElementById('report-mobile')) document.getElementById('report-mobile').innerText = `Mob: ${student.mobile_no || 'N/A'}`;
 
     const studentLogs = state.allLogsMap.filter(l => l.student_id === student.id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
     
@@ -522,6 +539,7 @@ async function openStudentLog(studentId, btnElement) {
     let absentCount = 0;
     
     const listEl = document.getElementById('report-logs-list');
+    if (!listEl) return;
     listEl.innerHTML = '';
 
     if (studentLogs.length === 0) {
@@ -545,25 +563,29 @@ async function openStudentLog(studentId, btnElement) {
         });
     }
 
-    document.getElementById('report-present-count').innerText = presentCount;
-    document.getElementById('report-absent-count').innerText = absentCount;
+    if(document.getElementById('report-present-count')) document.getElementById('report-present-count').innerText = presentCount;
+    if(document.getElementById('report-absent-count')) document.getElementById('report-absent-count').innerText = absentCount;
 
     const total = presentCount + absentCount;
     const percent = total === 0 ? 0 : Math.round((presentCount / total) * 100);
-    document.getElementById('attendance-percent-center').innerText = total === 0 ? 'N/A' : `${percent}%`;
+    if(document.getElementById('attendance-percent-center')) document.getElementById('attendance-percent-center').innerText = total === 0 ? 'N/A' : `${percent}%`;
 
     renderChart(presentCount, absentCount);
 
     const waContainer = document.getElementById('whatsapp-warning-container');
-    if (total > 0 && percent < 60 && student.mobile_no) {
-        waContainer.classList.remove('hidden');
-    } else {
-        waContainer.classList.add('hidden');
+    if (waContainer) {
+        if (total > 0 && percent < 60 && student.mobile_no) {
+            waContainer.classList.remove('hidden');
+        } else {
+            waContainer.classList.add('hidden');
+        }
     }
 }
 
 function renderChart(present, absent) {
-    const ctx = document.getElementById('attendanceChart').getContext('2d');
+    const chartCanvas = document.getElementById('attendanceChart');
+    if (!chartCanvas) return;
+    const ctx = chartCanvas.getContext('2d');
     if (state.chartInstance) state.chartInstance.destroy();
 
     state.chartInstance = new Chart(ctx, {
@@ -644,6 +666,11 @@ async function markAbsentees() {
 
 // --- Clock In Check ---
 async function performClockIn() {
+    // SAFETY CHECK 2: Prevent kiosk interactions if core variables are unassigned
+    if (!state.modelsLoaded) {
+        triggerBanner("System Offline", "Biometric verification core models are loading. Please wait.", "error");
+        return;
+    }
     if (state.registeredFaces.length === 0) { 
         triggerBanner("System Error", "Database empty. Contact admin.", "error");
         speakMessage("System error. Database empty."); return; 
@@ -657,15 +684,17 @@ async function performClockIn() {
         await video.play().catch(e=>console.log(e));
     }
 
-    clockInBtn.innerHTML = `<div class="spinner border-white border-t-transparent w-4 h-4"></div> Analyzing`; 
-    clockInBtn.disabled = true;
+    if(clockInBtn) {
+        clockInBtn.innerHTML = `<div class="spinner border-white border-t-transparent w-4 h-4"></div> Analyzing`; 
+        clockInBtn.disabled = true;
+    }
 
     try {
         const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
         if (!detection) { 
             triggerBanner("Scan Failed", "No face detected.", "error");
             speakMessage("Authentication failed. No face detected.");
-            resetBtn(); return; 
+            return; 
         }
 
         const faceMatcher = new faceapi.FaceMatcher(state.registeredFaces, 0.5);
@@ -711,13 +740,16 @@ async function performClockIn() {
     } catch (err) { 
         triggerBanner("System Error", "Processing error occurred.", "error");
         speakMessage("System processing error.");
-    } 
-    resetBtn();
+    } finally {
+        resetBtn();
+    }
 }
 
 function resetBtn() {
-    clockInBtn.innerHTML = `<i data-lucide="scan-face" class="w-5 h-5 text-white"></i> Authenticate Identity`; 
-    clockInBtn.disabled = false;
+    if(clockInBtn) {
+        clockInBtn.innerHTML = `<i data-lucide="scan-face" class="w-5 h-5 text-white"></i> Authenticate Identity`; 
+        clockInBtn.disabled = false;
+    }
     lucide.createIcons();
 }
 
@@ -736,38 +768,54 @@ function buildAdminNav() {
     navItems.forEach(item => {
         html += `<button onclick="switchAdminTab('${item.id}')" id="nav-btn-${item.id}" class="nav-btn px-3 py-1.5 rounded-md text-sm font-medium text-muted hover:text-primary transition flex items-center gap-1.5 shrink-0"><i data-lucide="${item.icon}" class="w-4 h-4"></i> ${item.label}</button>`;
     });
-    desktopNav.innerHTML = html; mobileNav.innerHTML = html; lucide.createIcons();
+    if(desktopNav) desktopNav.innerHTML = html; 
+    if(mobileNav) mobileNav.innerHTML = html; 
+    lucide.createIcons();
 }
 
 function openPinModal() {
     const modal = document.getElementById('pin-modal');
+    if(!modal) return;
     modal.classList.remove('hidden'); modal.classList.add('flex');
-    document.getElementById('pin-input').value = '';
-    document.getElementById('pin-error').classList.add('hidden');
-    setTimeout(()=> document.getElementById('pin-input').focus(), 100);
+    if(document.getElementById('pin-input')) {
+        document.getElementById('pin-input').value = '';
+        setTimeout(()=> document.getElementById('pin-input').focus(), 100);
+    }
+    if(document.getElementById('pin-error')) document.getElementById('pin-error').classList.add('hidden');
 }
 
-function closePinModal() { document.getElementById('pin-modal').classList.add('hidden'); document.getElementById('pin-modal').classList.remove('flex'); }
+function closePinModal() { 
+    const modal = document.getElementById('pin-modal');
+    if(modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+}
 
 function verifyPin() {
-    if(document.getElementById('pin-input').value === APP_CONFIG.ADMIN_PIN) {
+    if(document.getElementById('pin-input') && document.getElementById('pin-input').value === APP_CONFIG.ADMIN_PIN) {
         closePinModal(); enterAdminMode();
     } else {
-        document.getElementById('pin-error').classList.remove('hidden');
-        document.getElementById('pin-input').value = '';
+        if(document.getElementById('pin-error')) document.getElementById('pin-error').classList.remove('hidden');
+        if(document.getElementById('pin-input')) document.getElementById('pin-input').value = '';
     }
 }
-document.getElementById('pin-input').addEventListener('keypress', e => { if (e.key === 'Enter') verifyPin(); });
+
+if(document.getElementById('pin-input')) {
+    document.getElementById('pin-input').addEventListener('keypress', e => { if (e.key === 'Enter') verifyPin(); });
+}
 
 function enterAdminMode() {
-    document.getElementById('kiosk-mode').classList.add('hidden');
-    document.getElementById('admin-mode').classList.remove('hidden'); document.getElementById('admin-mode').classList.add('flex');
+    if(document.getElementById('kiosk-mode')) document.getElementById('kiosk-mode').classList.add('hidden');
+    if(document.getElementById('admin-mode')) {
+        document.getElementById('admin-mode').classList.remove('hidden'); 
+        document.getElementById('admin-mode').classList.add('flex');
+    }
     buildAdminNav(); switchAdminTab('register');
 }
 
 function exitAdminMode() {
-    document.getElementById('admin-mode').classList.add('hidden'); document.getElementById('admin-mode').classList.remove('flex');
-    document.getElementById('kiosk-mode').classList.remove('hidden'); checkGeofence(); 
+    if(document.getElementById('admin-mode')) document.getElementById('admin-mode').classList.add('hidden'); 
+    if(document.getElementById('admin-mode')) document.getElementById('admin-mode').classList.remove('flex');
+    if(document.getElementById('kiosk-mode')) document.getElementById('kiosk-mode').classList.remove('hidden'); 
+    checkGeofence(); 
     if (video) video.play().catch(e=>{});
 }
 
