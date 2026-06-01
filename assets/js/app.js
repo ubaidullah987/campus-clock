@@ -336,6 +336,7 @@ function toggleFullScreenLayout(isFullScreen) {
     }
 }
 
+
 async function registerFace() {
     const nameEl = document.getElementById('regName') || document.getElementById('studentName');
     const name = nameEl ? nameEl.value.trim() : '';
