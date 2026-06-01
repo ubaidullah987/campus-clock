@@ -119,7 +119,7 @@ async function loadModels() {
     // 1. Turn on camera immediately so the user doesn't face a black layout
     await startCamera(); 
 
-    const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+    const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/models';
     try {
         if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
         
