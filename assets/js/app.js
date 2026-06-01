@@ -119,7 +119,7 @@ async function loadModels() {
     await startCamera(); 
 
     // FIX: Use jsdelivr instead of unpkg, it is much less likely to be blocked
-    const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+    const MODEL_URL = '/model';
     
     try {
         if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
